@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xodimlar davomati</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <meta name="theme-color" content="#2563eb">
+
+  <style>
+    :root { background: #f3f4f6; color: #1f2937; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { padding: 20px; display: flex; justify-content: center; }
+    .app { background: #ffffff; padding: 24px; border-radius: 12px; max-width: 500px; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    h1 { font-size: 20px; margin-bottom: 16px; text-align: center; color: #2563eb; font-weight: bold; line-height: 1.3; }
+
+    .install-btn { width: 100%; padding: 12px; background: #8b5cf6; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; margin-bottom: 18px; cursor: pointer; display: none; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; }
+    input, select { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; }
+    .mode-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 4px; }
+    .mode-tile { margin: 0; padding: 16px 8px; border-radius: 14px; border: 2px solid #e5e7eb; background: #f9fafb; color: #9ca3af; text-align: center; cursor: default; user-select: none; transition: all .35s; }
+    .mode-tile .m-icon { font-size: 30px; line-height: 1; }
+    .mode-tile .m-title { font-size: 18px; margin-top: 6px; }
+    .mode-tile .m-time { font-size: 12px; font-weight: normal; margin-top: 2px; }
+    .mode-tile.active.keldi { background: linear-gradient(135deg,#22c55e,#15803d); border-color: #15803d; color: #fff; box-shadow: 0 6px 16px rgba(22,163,74,.35); transform: scale(1.03); }
+    .mode-tile.active.ketdi { background: linear-gradient(135deg,#f87171,#b91c1c); border-color: #b91c1c; color: #fff; box-shadow: 0 6px 16px rgba(220,38,38,.35); transform: scale(1.03); }
+    .mode-tile:not(.active) { opacity: .55; }
+    .photo-box { position: relative; width: 100%; height: 280px; background: #e5e7eb; border: 2px dashed #9ca3af; border-radius: 8px; margin: 15px 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .photo-preview, .live-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    .live-video.mirror { transform: scaleX(-1); }
+    .file-input { display: none; }
+    button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+    .btn-blue { background: #2563eb; color: #fff; }
+    .btn-green { background: #16a34a; color: #fff; }
+    .btn-orange { background: #ea580c; color: #fff; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+    .status-badge { font-size: 13px; padding: 8px; border-radius: 4px; background: #e5e7eb; text-align: center; margin-top: 5px; font-weight: bold; }
+    .status-badge.error { background: #fecdd3; color: #9f1239; }
+    .status-badge.success { background: #dcfce7; color: #166534; }
+    .status-badge.warn { background: #fef3c7; color: #92400e; }
+    .leave-box { margin-top: 18px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <h1>Xodimlar davomati</h1>
+
+  <button type="button" id="btn-install" class="install-btn" onclick="installPWA()">📲 Ilovani telefonga o'rnatish</button>
+
+  <div class="status-badge" id="time-status">Vaqt tekshirilmoqda...</div>
+
+  
+
+  <div class="form-group" style="margin-top:16px">
+    <label>Xodim F.I.Sh.</label>
+    <select id="emp-name" onchange="checkForm()">
+      <option value="">Xodimni tanlang...</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Harakat turi</label>
+    <div class="mode-group">
+      <div class="mode-tile keldi" id="tile-keldi"><div class="m-icon">🟢</div><div class="m-title">KELDI</div><div class="m-time" id="tile-keldi-time">07:00 - 08:30</div></div>
+      <div class="mode-tile ketdi" id="tile-ketdi"><div class="m-icon">🔴</div><div class="m-title">KETDI</div><div class="m-time" id="tile-ketdi-time">13:00 - 14:00</div></div>
+    </div>
+    <div class="status-badge" style="margin-top:8px">Harakat turi vaqtga qarab avtomatik tanlanadi</div>
+    <div class="status-badge" id="done-status" style="display:none"></div>
+  </div>
+
+  <div class="form-group">
+    <label>Face Control (Rasmga tushish)</label>
+    <div class="photo-box">
+      <span id="photo-placeholder">Rasm yuklanmagan</span>
+      <video id="live-video" class="live-video" autoplay playsinline muted></video>
+      <img id="preview" class="photo-preview" alt="Preview">
+    </div>
+    <input type="file" accept="image/*" capture="user" id="camera-file" class="file-input" onchange="handlePhoto(this)">
+    <button type="button" class="btn-blue" id="btn-camera-trigger" onclick="cameraButton()" disabled>Kamerani ochish</button>
+    <div class="status-badge" id="face-status">Kutilmoqda...</div>
+  </div>
+
+  <div class="form-group">
+    <label>GPS Geolokatsiya</label>
+    <button type="button" class="btn-blue" onclick="verifyGPS()">GPS manzilni aniqlash</button>
+    <div class="status-badge" id="geo-status">Kutilmoqda...</div>
+  </div>
+
+  <button type="button" class="btn-green" id="btn-submit" onclick="sendDataToTelegram()" disabled>Tasdiqlash va Saqlash</button>
+
+  
+</div>
+
+<script>
+  const EMPLOYEES = ["Abdurahmonova.N", "Hamidov.S", "Hamidova.M", "Rahimov.J"];
+
+  // ---- SOZLAMALAR ----
+  // Cloudflare Worker manzili (worker.js ni deploy qilgach shu yerga yozing)
+  const WORKER_URL = "https://davomat2.otdelkadrov-1khm.workers.dev";
+  const TECH_LAT = 40.282981;
+  const TECH_LON = 69.033522;
+  const MAX_DISTANCE_METERS = 200;
+  // Vaqt oynalari (daqiqalarda, Toshkent vaqti)
+  const WINDOWS = {
+    keldi: { start: 7 * 60,       end: 8 * 60 + 30,  label: "07:00 - 08:30" },
+    ketdi: { start: 13 * 60,      end: 14 * 60,      label: "13:00 - 14:00" }
+  };
+
+  let faceVerified = false;
+  let geoVerified = false;
+  let coordsText = "";
+  let rawFileBlob = null;
+  let deferredPrompt = null;
+  let cameraStream = null;
+  let cameraActive = false;
+
+  // ---- TOSHKENT VAQTI (telefon vaqt zonasidan qat'i nazar UTC+5) ----
+  function tashkentNow() {
+    const d = new Date();
+    return new Date(d.getTime() + d.getTimezoneOffset() * 60000 + 5 * 3600000);
+  }
+  function todayKey() {
+    const t = tashkentNow();
+    return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+  }
+  // Harakat turi avtomatik: 12:00 gacha - Keldi, undan keyin - Ketdi
+  function currentType() {
+    const t = tashkentNow();
+    return (t.getHours() * 60 + t.getMinutes()) < 12 * 60 ? "keldi" : "ketdi";
+  }
+  function typeLabel(type) { return type === "keldi" ? "🟢 Keldi" : "🔴 Ketdi"; }
+  function renderTiles() {
+    const type = currentType();
+    document.getElementById('tile-keldi').classList.toggle('active', type === "keldi");
+    document.getElementById('tile-ketdi').classList.toggle('active', type === "ketdi");
+  }
+  // Vaqt holati: "open" | "early" | "late"
+  function windowState(type) {
+    const t = tashkentNow();
+    const m = t.getHours() * 60 + t.getMinutes();
+    const w = WINDOWS[type];
+    if (m < w.start) return "early";
+    if (m > w.end) return "late";
+    return "open";
+  }
+
+  // ---- KUNIGA BIR MARTA ----
+  function doneKey(type) {
+    const name = document.getElementById('emp-name').value;
+    return `att2_${todayKey()}_${name}_${type}`;
+  }
+  function isAlreadyDone(type) {
+    const name = document.getElementById('emp-name').value;
+    if (!name) return false;
+    try { return localStorage.getItem(doneKey(type)) === "1"; } catch (e) { return false; }
+  }
+  function markDone(type) {
+    try { localStorage.setItem(doneKey(type), "1"); } catch (e) {}
+  }
+
+  // ---- VAQT / HOLAT PANELI ----
+  function refreshTimeStatus() {
+    renderTiles();
+    const type = currentType();
+    const w = WINDOWS[type];
+    const state = windowState(type);
+    const el = document.getElementById('time-status');
+    const title = type === "keldi" ? "Kelish" : "Ketish";
+
+    if (state === "open") {
+      el.textContent = `🟢 ${title} vaqti ochiq (${w.label})`;
+      el.className = "status-badge success";
+    } else if (state === "late") {
+      el.textContent = `⛔ ${title} vaqti tugadi! (${w.label})`;
+      el.className = "status-badge error";
+    } else {
+      el.textContent = `⏳ ${title} vaqti hali boshlanmadi (${w.label})`;
+      el.className = "status-badge warn";
+    }
+
+    const doneEl = document.getElementById('done-status');
+    if (isAlreadyDone(type)) {
+      doneEl.textContent = `✅ Bugun "${title}" allaqachon yuborilgan. Kuniga faqat 1 marta.`;
+      doneEl.className = "status-badge warn";
+      doneEl.style.display = "block";
+    } else {
+      doneEl.style.display = "none";
+    }
+    updateSubmitButton();
+  }
+  setInterval(refreshTimeStatus, 15000);
+
+
+  // ---- ILOVA O'RNATISH ----
+  const installBtn = document.getElementById('btn-install');
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  let isInstalledInStorage = false;
+  try { isInstalledInStorage = localStorage.getItem('appInstalled2') === 'true'; } catch (e) {}
+
+  if (!isStandalone && !isInstalledInStorage) {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.style.display = 'block';
+    });
+  }
+
+  function installPWA() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          try { localStorage.setItem('appInstalled2', 'true'); } catch (e) {}
+          installBtn.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    } else {
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isAndroid) {
+        alert("Ilovani o'rnatish uchun:\n1. Brauzerning yuqori burchagidagi 3 ta nuqtani (⋮) bosing.\n2. 'Bosh ekranga qo'shish' ni bosing.");
+      } else if (isIOS) {
+        alert("Ilovani o'rnatish uchun:\n1. Pastdagi 'Ulashish' tugmasini bosing.\n2. 'Bosh ekranga qo'shish' (Add to Home Screen) ni bosing.");
+      }
+    }
+  }
+  window.addEventListener('appinstalled', () => {
+    try { localStorage.setItem('appInstalled2', 'true'); } catch (e) {}
+    installBtn.style.display = 'none';
+  });
+
+  // ---- MASOFA ----
+  function getDistanceMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+  }
+
+  function initEmployees() {
+    const nameSelect = document.getElementById('emp-name');
+    nameSelect.innerHTML = '<option value="">Xodimni tanlang...</option>';
+    EMPLOYEES.forEach(n => {
+      const op = document.createElement('option');
+      op.value = n;
+      op.textContent = n;
+      nameSelect.appendChild(op);
+    });
+  }
+
+  function checkForm() {
+    const name = document.getElementById('emp-name').value;
+    document.getElementById('btn-camera-trigger').disabled = !name;
+    refreshTimeStatus();
+  }
+
+  // ---- KAMERA: avval old (front), bo'lmasa orqa, bo'lmasa fayl ----
+  async function startStream() {
+    const attempts = [
+      { video: { facingMode: { exact: "user" } }, audio: false },
+      { video: { facingMode: "environment" }, audio: false },
+      { video: true, audio: false }
+    ];
+    for (const c of attempts) {
+      try { return await navigator.mediaDevices.getUserMedia(c); } catch (e) {}
+    }
+    return null;
+  }
+
+  function stopStream() {
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+    cameraActive = false;
+    document.getElementById('live-video').style.display = 'none';
+  }
+
+  async function cameraButton() {
+    const btn = document.getElementById('btn-camera-trigger');
+    const video = document.getElementById('live-video');
+
+    // Kamera ochiq bo'lsa — rasmga olish
+    if (cameraActive) {
+      captureFromVideo(video);
+      return;
+    }
+
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      document.getElementById('camera-file').click();
+      return;
+    }
+
+    btn.disabled = true;
+    const stream = await startStream();
+    btn.disabled = false;
+
+    if (!stream) {
+      // Ruxsat berilmadi yoki kamera ochilmadi — oddiy kamera oynasi
+      document.getElementById('camera-file').click();
+      return;
+    }
+
+    cameraStream = stream;
+    cameraActive = true;
+    const settings = stream.getVideoTracks()[0].getSettings ? stream.getVideoTracks()[0].getSettings() : {};
+    video.classList.toggle('mirror', settings.facingMode !== "environment");
+    video.srcObject = stream;
+    video.style.display = 'block';
+    document.getElementById('preview').style.display = 'none';
+    document.getElementById('photo-placeholder').style.display = 'none';
+    btn.textContent = "📸 Rasmga olish";
+    faceVerified = false;
+    rawFileBlob = null;
+    const st = document.getElementById('face-status');
+    st.textContent = "Yuzingizni kameraga qarating";
+    st.className = "status-badge";
+    updateSubmitButton();
+  }
+
+  function captureFromVideo(video) {
+    if (!video.videoWidth) return;
+    drawToBlob(video, video.videoWidth, video.videoHeight);
+    stopStream();
+    document.getElementById('btn-camera-trigger').textContent = "🔄 Qayta olish";
+  }
+
+  function drawToBlob(source, srcW, srcH) {
+    const MAX_SIZE = 800;
+    let width = srcW, height = srcH;
+    if (width > height) {
+      if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+    } else {
+      if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(source, 0, 0, width, height);
+    canvas.toBlob((blob) => {
+      rawFileBlob = blob;
+      const prev = document.getElementById('preview');
+      prev.src = canvas.toDataURL('image/jpeg', 0.6);
+      prev.style.display = 'block';
+      document.getElementById('photo-placeholder').style.display = 'none';
+      faceVerified = true;
+      const st = document.getElementById('face-status');
+      st.textContent = "🟢 Rasm yuklandi!";
+      st.className = "status-badge success";
+      updateSubmitButton();
+    }, 'image/jpeg', 0.6);
+  }
+
+  // Zaxira: fayl orqali (capture="user")
+  function handlePhoto(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() { drawToBlob(img, img.width, img.height); };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(input.files[0]);
+      input.value = "";
+    }
+  }
+
+  // ---- GPS ----
+  function verifyGPS() {
+    const statusEl = document.getElementById('geo-status');
+    statusEl.textContent = "Sputniklar qidirilmoqda (GPS)...";
+    statusEl.className = "status-badge";
+
+    if (!navigator.geolocation) {
+      statusEl.textContent = "❌ Telefoningiz GPS-ni qo'llab-quvvatlamaydi!";
+      statusEl.className = "status-badge error";
+      geoVerified = false;
+      updateSubmitButton();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const dist = getDistanceMeters(lat, lon, TECH_LAT, TECH_LON);
+        coordsText = `${lat},${lon}`;
+        if (dist <= MAX_DISTANCE_METERS) {
+          geoVerified = true;
+          statusEl.textContent = `🟢 Hududdasiz (${Math.round(dist)}m)`;
+          statusEl.className = "status-badge success";
+        } else {
+          geoVerified = false;
+          statusEl.textContent = `❌ Hududdan tashqaridasiz! Masofa: ${Math.round(dist)}m (200m gacha ruxsat)`;
+          statusEl.className = "status-badge error";
+        }
+        updateSubmitButton();
+      },
+      err => {
+        geoVerified = false;
+        let msg = "❌ GPS aniqlanmadi!";
+        if (err.code === 1) msg = "❌ GPS ruxsati berilmagan! Sozlamalardan joylashuvga ruxsat bering.";
+        else if (err.code === 2) msg = "❌ GPS signali topilmadi. Ochiq havoga chiqing.";
+        else if (err.code === 3) msg = "❌ GPS vaqt tugadi. Qaytadan urinib ko'ring.";
+        statusEl.textContent = msg;
+        statusEl.className = "status-badge error";
+        updateSubmitButton();
+      },
+      { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
+    );
+  }
+
+  function updateSubmitButton() {
+    const name = document.getElementById('emp-name').value;
+    const type = currentType();
+    const ok = name && faceVerified && geoVerified &&
+               windowState(type) === "open" && !isAlreadyDone(type);
+    document.getElementById('btn-submit').disabled = !ok;
+  }
+
+  // ---- SERVERGA (WORKER) YUBORISH ----
+  function sendDataToTelegram() {
+    const type = currentType();
+    const state = windowState(type);
+    if (state === "late") { alert("Vaqt tugadi!"); refreshTimeStatus(); return; }
+    if (state === "early") { alert("Hali vaqt boshlanmadi: " + WINDOWS[type].label); refreshTimeStatus(); return; }
+    if (isAlreadyDone(type)) { alert("Bugun allaqachon yuborilgan."); refreshTimeStatus(); return; }
+
+    const submitBtn = document.getElementById('btn-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Yuborilmoqda...";
+
+    const formData = new FormData();
+    formData.append("name", document.getElementById('emp-name').value);
+    formData.append("type", type);
+    formData.append("coords", coordsText);
+    if (rawFileBlob) formData.append("photo", rawFileBlob, "face.jpg");
+
+    fetch(WORKER_URL + "/attendance", { method: "POST", body: formData })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          markDone(type);
+          alert("Davomat muvaffaqiyatli qayd etildi!");
+          location.reload();
+        } else {
+          alert("Xatolik: " + (data.error || "Qayta urinib ko'ring"));
+          submitBtn.textContent = "Tasdiqlash va Saqlash";
+          if (data.error && /yuborilgan/.test(data.error)) markDone(type);
+          refreshTimeStatus();
+        }
+      })
+      .catch(() => {
+        alert("Tarmoq xatosi. Internetni tekshiring.");
+        submitBtn.textContent = "Tasdiqlash va Saqlash";
+        updateSubmitButton();
+      });
+  }
+
+  // Bugungi vaqt oynalarini serverdan olish (bir martalik o'zgarishlar uchun)
+  const fmtMin = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  function loadConfig() {
+    fetch(WORKER_URL + "/config").then(r => r.json()).then(c => {
+      if (!c || !c.ok) return;
+      ["keldi", "ketdi"].forEach(t => {
+        const w = c.windows[t];
+        if (!w) return;
+        WINDOWS[t].start = w.start; WINDOWS[t].end = w.end;
+        WINDOWS[t].label = fmtMin(w.start) + " - " + fmtMin(w.end);
+        const el = document.getElementById("tile-" + t + "-time");
+        if (el) el.textContent = WINDOWS[t].label;
+      });
+      refreshTimeStatus();
+    }).catch(() => {});
+  }
+  loadConfig();
+
+  // Oflayn qobiq (PWA) - faqat HTTPS orqali ishlaydi, APK ichida jim o'tkazib yuboriladi
+  try { if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js'); } catch (e) {}
+
+  initEmployees();
+  refreshTimeStatus();
+</script>
+</body>
+</html>
