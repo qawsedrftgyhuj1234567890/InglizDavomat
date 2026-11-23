@@ -7,6 +7,10 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png">
   <meta name="theme-color" content="#2563eb">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Davomat">
 
   <style>
     :root { background: #f3f4f6; color: #1f2937; }
@@ -209,6 +213,10 @@
     });
   }
 
+  // iPhone/iPad: Safari avtomatik o'rnatish so'ramaydi, shuning uchun ko'rsatma tugmasini ko'rsatamiz
+  const isIOSDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOSDevice && !isStandalone) { installBtn.style.display = 'block'; }
+
   function installPWA() {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -225,7 +233,7 @@
       if (isAndroid) {
         alert("Ilovani o'rnatish uchun:\n1. Brauzerning yuqori burchagidagi 3 ta nuqtani (⋮) bosing.\n2. 'Bosh ekranga qo'shish' ni bosing.");
       } else if (isIOS) {
-        alert("Ilovani o'rnatish uchun:\n1. Pastdagi 'Ulashish' tugmasini bosing.\n2. 'Bosh ekranga qo'shish' (Add to Home Screen) ni bosing.");
+        alert("Ilovani o'rnatish uchun:\n1. Safari brauzerida pastdagi 'Ulashish' (⬆️) tugmasini bosing.\n2. 'Bosh ekranga qo'shish' (Add to Home Screen) ni tanlang.\n3. 'Qo'shish' ni bosing.");
       }
     }
   }
@@ -442,7 +450,10 @@
     if (rawFileBlob) formData.append("photo", rawFileBlob, "face.jpg");
 
     fetch(WORKER_URL + "/attendance", { method: "POST", body: formData })
-      .then(res => res.json())
+      .then(async res => {
+        try { return await res.json(); }
+        catch (e) { throw new Error("Server javobi noto'g'ri (HTTP " + res.status + ")"); }
+      })
       .then(data => {
         if (data.ok) {
           markDone(type);
@@ -455,8 +466,15 @@
           refreshTimeStatus();
         }
       })
-      .catch(() => {
-        alert("Tarmoq xatosi. Internetni tekshiring.");
+      .catch(async (err) => {
+        // Sababni aniqlash: serverga umuman ulanish bormi?
+        let info = "Server: ";
+        try {
+          const r = await fetch(WORKER_URL + "/config", { cache: "no-store" });
+          info += r.ok ? "ulanadi (HTTP " + r.status + ")" : "javob berdi, HTTP " + r.status;
+        } catch (e2) { info += "ULANMAYDI"; }
+        alert("Tarmoq xatosi.\n" + info + "\nInternet: " + (navigator.onLine ? "bor" : "yo'q") +
+              "\nXato: " + ((err && err.message) || err));
         submitBtn.textContent = "Tasdiqlash va Saqlash";
         updateSubmitButton();
       });
